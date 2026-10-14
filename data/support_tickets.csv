@@ -1,0 +1,5 @@
+ticket_id,opened_at,category,priority,summary
+T-88011,2026-10-13T08:12:00Z,shipping,normal,Order arrived without the rain fly
+T-88012,2026-10-13T09:40:00Z,checkout,high,Card declined twice at checkout
+T-88013,2026-10-13T11:05:00Z,returns,normal,Return label not received
+T-88014,2026-10-13T15:22:00Z,checkout,high,Checkout spinner never finishes

@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sandbox Identity Forwarding</title>
+<style>
+  :root { --bg:#224A41; --panel:#1C3B34; --panel2:#29524A; --line:#32645B; --ink:#EFF5F3; --muted:#B9CFC7;
+          --accent:#BBD96D; --mint:#70CD96; --deny:#F8947F; --mono:ui-monospace,"SFMono-Regular",Menlo,monospace; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;
+         padding:28px 20px; }
+  html.embed h1, html.embed .sub { display:none; }
+  html.embed body { padding:24px 20px; }
+  h1 { font-size:22px; font-weight:500; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:14px; margin:0 0 20px; }
+  .label { font:12px/16px var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
+  .scenarios { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-bottom:22px; }
+  .scenarios button { text-align:left; background:var(--panel); border:1px solid var(--line); color:var(--ink);
+    border-radius:4px; padding:12px; cursor:pointer; font:inherit; font-size:14px; line-height:1.35; }
+  .scenarios button:hover { border-color:var(--muted); }
+  .scenarios button.active { border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); }
+  .scenarios button:disabled { opacity:.55; cursor:default; }
+  .scenarios .who { display:block; font:11px/14px var(--mono); text-transform:uppercase; letter-spacing:.06em;
+    color:var(--accent); margin-bottom:6px; }
+  .chain { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:0; margin-bottom:22px; }
+  .node { position:relative; background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:10px;
+    margin-right:18px; min-height:132px; transition:border-color .2s, background .2s; overflow:hidden; }
+  .node:last-child { margin-right:0; }
+  .node:not(:last-child)::after { content:""; position:absolute; right:-19px; top:50%; width:18px; height:2px;
+    background:var(--line); }
+  .node .t { font:11px/14px var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
+  .node .v { font:12px/16px var(--mono); margin-top:6px; word-break:break-all; color:var(--ink); }
+  .node .s { margin-top:8px; font:11px/14px var(--mono); text-transform:uppercase; letter-spacing:.06em; }
+  .node.active { border-color:var(--accent); }
+  .node.ok { border-color:var(--mint); background:linear-gradient(180deg, rgba(112,205,150,.10), var(--panel)); }
+  .node.ok .s { color:var(--mint); }
+  .node.no { border-color:var(--deny); background:linear-gradient(180deg, rgba(248,148,127,.12), var(--panel)); }
+  .node.no .s { color:var(--deny); }
+  .node.skip { opacity:.4; }
+  .grid2 { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:14px; }
+  table { width:100%; border-collapse:collapse; font:12px/16px var(--mono); }
+  th { text-align:left; color:var(--muted); font-weight:400; text-transform:uppercase; letter-spacing:.06em;
+    padding:6px 8px 6px 0; border-bottom:1px solid var(--line); }
+  td:last-child, th:last-child { white-space:nowrap; }
+  td { padding:7px 8px 7px 0; border-bottom:1px solid rgba(50,100,91,.5); vertical-align:top; word-break:break-word; }
+  .allowed { color:var(--mint); } .denied { color:var(--deny); } .issued { color:var(--accent); }
+  #rows table td { color:var(--ink); }
+  .note { color:var(--muted); font-size:13px; margin-top:10px; }
+  .claims { font:12px/18px var(--mono); white-space:pre-wrap; word-break:break-all; color:var(--ink); margin:0; }
+  #status { min-height:20px; margin:-10px 0 14px; }
+  .scroll { overflow-x:auto; }
+  .scroll td { white-space:nowrap; }
+  @media (max-width: 760px) {
+    .scenarios { grid-template-columns:1fr 1fr; }
+    .chain { grid-template-columns:1fr; }
+    .node { margin:0 0 14px 0; min-height:0; }
+    .node:not(:last-child)::after { right:auto; left:50%; top:auto; bottom:-15px; width:2px; height:14px; }
+    .grid2 { grid-template-columns:1fr; }
+    .audit th:nth-child(-n+2), .audit td:nth-child(-n+2), .audit th:last-child, .audit td:last-child { display:none; }
+  }
+</style>
+<script>
+  if (new URLSearchParams(location.search).has("embed")) document.documentElement.classList.add("embed");
+</script>
+</head>
+<body>
+  <h1>Sandbox identity forwarding</h1>
+  <p class="sub">Each agent's sandbox carries the agent's own Chalk identity. Cloud IAM decides what it can reach.</p>
+  <div class="scenarios" id="scenarios"></div>
+  <div id="status" class="label"></div>
+  <div class="chain" id="chain"></div>
+  <div class="grid2">
+    <div class="card">
+      <div class="label" style="margin-bottom:8px">Identity in flight</div>
+      <pre class="claims" id="claims">Pick a scenario to launch the agent's sandbox.</pre>
+    </div>
+    <div class="card" id="rows">
+      <div class="label" style="margin-bottom:8px">What the agent could read</div>
+      <div id="rowsBody" class="note">Rows appear here only for reads that IAM allowed.</div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:16px">
+    <div class="label" style="margin-bottom:8px">Audit trail</div>
+    <table class="audit"><thead><tr><th>Time</th><th>Who</th><th>Hop</th><th>Target</th><th>Decision</th><th>ms</th></tr></thead>
+      <tbody id="audit"></tbody></table>
+    <p class="note">Every row is a real call: Chalk's API, Google STS, IAM Credentials, BigQuery. Tokens never leave the
+      sandbox; this page sees claims, fingerprints and TTLs only.</p>
+  </div>
+<script>
+const NODES = [
+  ["launch", "Agent"], ["sandbox", "Sandbox"], ["oidc", "Chalk OIDC token"],
+  ["sts", "Cloud token exchange"], ["impersonate", "Service account"], ["read", "BigQuery"],
+];
+const chainEl = document.getElementById("chain");
+const statusEl = document.getElementById("status");
+const claimsEl = document.getElementById("claims");
+const auditEl = document.getElementById("audit");
+const rowsEl = document.getElementById("rowsBody");
+let running = false, currentSub = "", currentAgent = "";
+
+function shortId(s) {
+  return String(s).replace(/(service-token:|user:)([a-z0-9]{6})[a-z0-9]+/g, "$1$2…")
+                  .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, m => m.slice(0, 8) + "…");
+}
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+
+function resetChain() {
+  chainEl.innerHTML = "";
+  for (const [key, title] of NODES) {
+    const n = el("div", "node"); n.id = "node-" + key;
+    n.append(el("div", "t", title), el("div", "v", ""), el("div", "s", ""));
+    chainEl.append(n);
+  }
+}
+function setNode(key, state, value, statusText) {
+  const n = document.getElementById("node-" + key); if (!n) return;
+  n.className = "node " + state;
+  if (value != null) n.querySelector(".v").textContent = value;
+  if (statusText != null) n.querySelector(".s").textContent = statusText;
+}
+function audit(hop, target, decision, ms) {
+  const tr = document.createElement("tr");
+  const t = new Date().toLocaleTimeString([], {hour: "2-digit", minute: "2-digit", second: "2-digit"});
+  for (const [v, c] of [[t], [currentAgent || "—"], [hop], [shortId(target || "")], [decision, decision], [ms ?? ""]]) {
+    tr.append(el("td", c || "", v));
+  }
+  auditEl.prepend(tr);
+}
+function showRows(target, cols, rows) {
+  if (rowsEl.classList.contains("note")) { rowsEl.classList.remove("note"); rowsEl.innerHTML = ""; }
+  const box = el("div"); box.style.marginBottom = "12px";
+  box.append(el("div", "label allowed", target.replace("bigquery:", "")));
+  const scroll = el("div", "scroll"); const tbl = el("table"); const head = el("tr");
+  cols.forEach(c => head.append(el("th", "", c))); tbl.append(head);
+  rows.slice(0, 4).forEach(r => { const tr = el("tr"); r.forEach(v => tr.append(el("td", "", fmt(v)))); tbl.append(tr); });
+  scroll.append(tbl); box.append(scroll); rowsEl.append(box);
+}
+function fmt(v) {
+  if (v != null && /^\d{10}(\.\d+)?$/.test(v)) return new Date(parseFloat(v) * 1000).toISOString().slice(0, 16).replace("T", " ");
+  return v;
+}
+
+let reads = [];
+function handle(h) {
+  switch (h.hop) {
+    case "queued": statusEl.textContent = "Waiting for a free run slot…"; break;
+    case "launch":
+      statusEl.textContent = h.title; currentAgent = h.agent_label;
+      setNode("launch", "ok", h.agent_label + " (Chalk service token)", "launching sandbox");
+      setNode("sandbox", "active", "starting…", "");
+      break;
+    case "sandbox":
+      setNode("launch", "ok", null, "launched");
+      setNode("sandbox", "ok", "sandbox " + shortId(h.claims.sandbox_id),
+        (h.sandbox_reused ? "warm" : "started " + h.launch_s + "s") + " · identity ttl " + Math.round(h.ttl_s / 60) + "m");
+      setNode("oidc", "active", "minting…", "");
+      audit("sandbox identity", "sandbox " + h.claims.sandbox_id, "issued", "");
+      break;
+    case "oidc":
+      currentSub = h.claims.sub;
+      setNode("oidc", "ok", "sub " + shortId(h.claims.sub), "aud set · ttl " + Math.round(h.ttl_s / 60) + "m · #" + h.fingerprint);
+      claimsEl.textContent = JSON.stringify({...h.claims, sub: shortId(h.claims.sub), "token": "never leaves the sandbox · sha256 " + h.fingerprint}, null, 2);
+      setNode("sts", "active", "exchanging…", "");
+      audit("mint OIDC", String(h.claims.aud).replace("//iam.googleapis.com/projects/", "…/"), "issued", h.ms);
+      break;
+    case "sts":
+      if (h.decision === "allowed") {
+        setNode("sts", "ok", "federated principal", "allowed · ttl " + Math.round(h.ttl_s / 60) + "m");
+      } else {
+        setNode("sts", "no", h.detail, "denied · " + h.status);
+        setNode("impersonate", "skip", "", ""); setNode("read", "skip", "", "");
+      }
+      audit("token exchange", "sts.googleapis.com", h.decision, h.ms);
+      break;
+    case "impersonate":
+      if (h.decision === "allowed") setNode("impersonate", "ok", h.target.split("@")[0], "allowed · 5 min token");
+      else { setNode("impersonate", "no", h.target.split("@")[0], "denied · " + h.status); }
+      audit("impersonate", h.target.split("@")[0], h.decision, h.ms);
+      break;
+    case "read": {
+      reads.push(h);
+      const denied = reads.filter(r => r.decision === "denied").length, ok = reads.length - denied;
+      setNode("read", denied ? "no" : "ok", reads.map(r => (r.decision === "allowed" ? "✓ " : "✗ ") + r.target.split(".").pop()).join("\n"),
+        ok + " allowed · " + denied + " denied");
+      audit("read via " + h.via, h.target, h.decision, h.ms);
+      if (h.decision === "allowed") showRows(h.target, h.columns, h.rows);
+      break;
+    }
+    case "error": statusEl.textContent = "The run failed (" + h.detail + "). Try again in a moment."; break;
+    case "done":
+      for (const key of ["impersonate", "read"]) {
+        const n = document.getElementById("node-" + key);
+        if (n && n.className === "node") setNode(key, "skip", "", "not used");
+      }
+      statusEl.textContent += " · done in " + (h.total_ms / 1000).toFixed(1) + "s";
+      break;
+  }
+}
+
+async function run(id, btn) {
+  if (running) return;
+  running = true; reads = []; currentSub = ""; currentAgent = "";
+  document.querySelectorAll(".scenarios button").forEach(b => { b.disabled = true; b.classList.toggle("active", b === btn); });
+  resetChain(); rowsEl.className = "note"; rowsEl.textContent = "Rows appear here only for reads that IAM allowed.";
+  claimsEl.textContent = "…"; statusEl.textContent = "Starting…";
+  try {
+    const resp = await fetch("api/run/" + id, {method: "POST"});
+    if (!resp.ok) { statusEl.textContent = resp.status === 429 ? "Too many runs; try again in a minute." : "Run failed (" + resp.status + ")."; return; }
+    const reader = resp.body.getReader(); const dec = new TextDecoder(); let buf = "";
+    for (;;) {
+      const {value, done} = await reader.read(); if (done) break;
+      buf += dec.decode(value, {stream: true});
+      let i; while ((i = buf.indexOf("\n")) >= 0) { const line = buf.slice(0, i); buf = buf.slice(i + 1); if (line.trim()) handle(JSON.parse(line)); }
+    }
+  } catch (e) { statusEl.textContent = "Connection error."; }
+  finally { running = false; document.querySelectorAll(".scenarios button").forEach(b => b.disabled = false); }
+}
+
+// Embedded in a marketing page, report our height so the iframe can grow with the run.
+if (window.parent !== window) {
+  const post = () => window.parent.postMessage({type: "chalk-demo-height", height: document.documentElement.scrollHeight}, "*");
+  new ResizeObserver(post).observe(document.body); post();
+}
+
+(async () => {
+  resetChain();
+  const list = await (await fetch("api/scenarios")).json();
+  const wrap = document.getElementById("scenarios");
+  for (const s of list) {
+    const b = el("button"); b.append(el("span", "who", s.agent_label), document.createTextNode(s.title));
+    b.onclick = () => run(s.id, b); wrap.append(b);
+  }
+})();
+</script>
+</body>
+</html>
