@@ -11,11 +11,10 @@
 Launches one short-lived sandbox per agent with that agent's service token and
 chalk_identity=True, and prints the `sub` claim of the OIDC token minted inside it, e.g.
 v1:env:<environment>:service-token:<id>. setup_gcp.sh binds IAM roles to these subjects.
-Uses CHALK_API_SERVER and CHALK_ENVIRONMENT_ID from the environment.
+Uses the API host and environment selected by your existing `chalk login` or CHALK_* settings.
 """
 
 import argparse
-import os
 import types
 
 import chalkcompute
@@ -46,8 +45,15 @@ def main() -> None:
     parser.add_argument("--agents-env", required=True)
     args = parser.parse_args()
     creds = read_env_file(args.agents_env)
-    api_server = os.environ["CHALK_API_SERVER"]
-    env_id = os.environ["CHALK_ENVIRONMENT_ID"]
+    from chalkcompute import ConnectClient
+
+    connect = ConnectClient()
+    try:
+        connect._ensure_auth()
+        api_server = connect._api_server.rstrip("/")
+        env_id = connect._env_id
+    finally:
+        connect.close()
     image = chalkcompute.Image.debian_slim("3.12").pip_install(["chalkcompute==2.13.5"])
     for agent, key in AGENTS.items():
         client = types.SimpleNamespace(

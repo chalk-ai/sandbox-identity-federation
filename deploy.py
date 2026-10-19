@@ -8,13 +8,12 @@
 
     ./deploy.py --agents-env agents.env --gcp-project my-project --gcp-project-number 123456789
 
-Chalk credentials for the deploy itself come from CHALK_API_SERVER, CHALK_CLIENT_ID,
-CHALK_CLIENT_SECRET and CHALK_ENVIRONMENT_ID. agents.env holds one service token per agent
+Chalk credentials and API host for the deploy come from your existing `chalk login`
+or the standard CHALK_* environment variables. agents.env holds one service token per agent
 (see README.md); it is injected as a Chalk secret scoped to the scaling group.
 """
 
 import argparse
-import os
 import time
 from pathlib import Path
 from urllib.parse import urlparse
@@ -35,8 +34,15 @@ def main() -> None:
     parser.add_argument("--name", default="sandbox-identity")
     args = parser.parse_args()
 
-    api_server = os.environ["CHALK_API_SERVER"].rstrip("/")
-    env_id = os.environ["CHALK_ENVIRONMENT_ID"]
+    from chalkcompute import ConnectClient
+
+    connect = ConnectClient()
+    try:
+        connect._ensure_auth()
+        api_server = connect._api_server.rstrip("/")
+        env_id = connect._env_id
+    finally:
+        connect.close()
     # Sandboxes call the Chalk API at the host its OIDC issuer names, so that is the host
     # their network policy has to allow.
     issuer = httpx.get(f"{api_server}/.well-known/openid-configuration", timeout=30).json()["issuer"]

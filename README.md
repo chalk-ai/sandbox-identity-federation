@@ -79,3 +79,9 @@ federated subject on calls it makes directly, and the service account on calls m
 ## License
 
 Apache-2.0. All company names and data in this demo are fictional.
+
+## Local authentication
+
+The SDK reads credentials, API host, and the selected environment from your existing
+`chalk login` in `~/.chalk.yml`, including project-scoped and default logins.
+Standard `CHALK_*` environment overrides remain supported.
