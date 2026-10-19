@@ -8,15 +8,19 @@
 #   - a table that every identity in the Chalk environment may read directly
 #
 # Usage:
-#   ./setup_gcp.sh <gcp-project> <chalk-api-server> <release-subject> <support-subject> <scratch-subject>
+#   ./setup_gcp.sh <gcp-project> <release-subject> <support-subject> <scratch-subject>
 # The subjects are the v1:env:... strings print_subjects.py prints.
 set -euo pipefail
 
 PROJECT=$1
-API_SERVER=${2%/}
-RELEASE_SUB=$3
-SUPPORT_SUB=$4
-SCRATCH_SUB=$5
+API_SERVER=$(uv run --with 'chalkcompute>=2.13.8' python -c '
+from chalkcompute import ConnectClient
+with ConnectClient() as connection:
+    print(connection.api_server)
+')
+RELEASE_SUB=$2
+SUPPORT_SUB=$3
+SCRATCH_SUB=$4
 POOL=chalk-sandbox-identity-demo
 PROVIDER=chalk
 DATASET=sandbox_identity_demo

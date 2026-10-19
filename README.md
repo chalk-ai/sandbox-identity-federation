@@ -38,8 +38,7 @@ You need a Chalk environment, a Google Cloud project you can create IAM resource
 [`uv`](https://docs.astral.sh/uv/), `gcloud` and `bq`.
 
 ```bash
-export CHALK_API_SERVER=https://api.chalk.ai CHALK_ENVIRONMENT_ID=<your environment>
-export CHALK_CLIENT_ID=... CHALK_CLIENT_SECRET=...   # used only to deploy the server
+chalk login
 
 # 1. One service token per agent; each launches and execs into its own sandbox.
 for a in release support scratch; do
@@ -53,7 +52,7 @@ done
 ./print_subjects.py --agents-env agents.env
 
 # 3. Pool, provider, tables, service accounts and bindings in your project.
-./setup_gcp.sh my-gcp-project "$CHALK_API_SERVER" <release subject> <support subject> <scratch subject>
+./setup_gcp.sh my-gcp-project <release subject> <support subject> <scratch subject>
 
 # 4. The demo server.
 ./deploy.py --agents-env agents.env --gcp-project my-gcp-project --gcp-project-number <number>
@@ -85,3 +84,7 @@ Apache-2.0. All company names and data in this demo are fictional.
 The SDK reads credentials, API host, and the selected environment from your existing
 `chalk login` in `~/.chalk.yml`, including project-scoped and default logins.
 Standard `CHALK_*` environment overrides remain supported.
+
+Requires `chalkcompute>=2.13.8` with the public connection context and in-memory
+secret APIs from [chalk-sandbox-sdk#511](https://github.com/chalk-ai/chalk-sandbox-sdk/pull/511).
+This PR is waiting for that SDK release.

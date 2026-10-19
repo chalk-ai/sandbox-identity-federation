@@ -2,7 +2,7 @@
 #
 # /// script
 # requires-python = ">=3.12,<3.14"
-# dependencies = ["chalkcompute>=2.13.5"]
+# dependencies = ["chalkcompute>=2.13.8", "chalkpy[runtime]==2.155.2"]
 # ///
 """Print the workload identity subject each agent's sandbox federates as.
 
@@ -15,7 +15,6 @@ Uses the API host and environment selected by your existing `chalk login` or CHA
 """
 
 import argparse
-import types
 
 import chalkcompute
 
@@ -46,21 +45,18 @@ def main() -> None:
     args = parser.parse_args()
     creds = read_env_file(args.agents_env)
     from chalkcompute import ConnectClient
+    from chalk.client import ChalkClient
 
-    connect = ConnectClient()
-    try:
-        connect._ensure_auth()
-        api_server = connect._api_server.rstrip("/")
-        env_id = connect._env_id
-    finally:
-        connect.close()
-    image = chalkcompute.Image.debian_slim("3.12").pip_install(["chalkcompute==2.13.5"])
+    with ConnectClient() as connection:
+        api_server = connection.api_server
+        env_id = connection.environment_id
+    image = chalkcompute.Image.debian_slim("3.12").pip_install(["chalkcompute>=2.13.8", "chalkpy[runtime]==2.155.2"])
     for agent, key in AGENTS.items():
-        client = types.SimpleNamespace(
-            _client_id=creds[f"DEMO_AGENT_{key}_CLIENT_ID"],
-            _client_secret=creds[f"DEMO_AGENT_{key}_CLIENT_SECRET"],
-            _api_server=api_server,
-            _primary_environment=env_id,
+        client = ChalkClient(
+            client_id=creds[f"DEMO_AGENT_{key}_CLIENT_ID"],
+            client_secret=creds[f"DEMO_AGENT_{key}_CLIENT_SECRET"],
+            api_server=api_server,
+            environment=env_id,
         )
         sandbox = chalkcompute.Sandbox(image=image, chalk_identity=True, chalk_client=client).run()
         try:

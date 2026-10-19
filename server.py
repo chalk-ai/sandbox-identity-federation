@@ -17,11 +17,11 @@ import logging
 import os
 import threading
 import time
-import types
 from pathlib import Path
 from typing import Any, AsyncIterator
 
 import chalkcompute
+from chalk.client import ChalkClient
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
@@ -86,17 +86,17 @@ SCENARIOS: dict[str, dict[str, Any]] = {
 def agent_client(agent: str) -> Any:
     """Credentials object for ConnectClient, so each sandbox is launched as its own agent."""
     prefix = f"DEMO_AGENT_{AGENTS[agent]['env']}"
-    return types.SimpleNamespace(
-        _client_id=os.environ[f"{prefix}_CLIENT_ID"],
-        _client_secret=os.environ[f"{prefix}_CLIENT_SECRET"],
-        _api_server=API_SERVER,
-        _primary_environment=ENV_ID,
+    return ChalkClient(
+        client_id=os.environ[f"{prefix}_CLIENT_ID"],
+        client_secret=os.environ[f"{prefix}_CLIENT_SECRET"],
+        api_server=API_SERVER,
+        environment=ENV_ID,
     )
 
 
 IMAGE = (
     chalkcompute.Image.debian_slim("3.12")
-    .pip_install(["chalkcompute==2.13.5"])
+    .pip_install(["chalkcompute>=2.13.8"])
     .add_local_file(str(CHAIN), "/opt/demo/agent_chain.py", strategy="copy")
 )
 NETWORK = chalkcompute.NetworkPolicy(
