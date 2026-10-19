@@ -28,10 +28,6 @@ def main() -> None:
     parser.add_argument("--agents-env", required=True)
     parser.add_argument("--gcp-project", required=True)
     parser.add_argument("--gcp-project-number", required=True)
-    parser.add_argument("--pool", default="chalk-sandbox-identity-demo")
-    parser.add_argument("--provider", default="chalk")
-    parser.add_argument("--dataset", default="sandbox_identity_demo")
-    parser.add_argument("--name", default="sandbox-identity")
     args = parser.parse_args()
 
     from chalkcompute import ConnectClient
@@ -58,12 +54,11 @@ def main() -> None:
         .workdir("/app")
     )
     provider = (
-        f"//iam.googleapis.com/projects/{args.gcp_project_number}/locations/global/"
-        f"workloadIdentityPools/{args.pool}/providers/{args.provider}"
+        f'//iam.googleapis.com/projects/{args.gcp_project_number}/locations/global/workloadIdentityPools/chalk-sandbox-identity-demo/providers/chalk'
     )
     sg = chalkcompute.ScalingGroup(
         image=image,
-        name=args.name,
+        name='sandbox-identity',
         cpu="1",
         memory="2Gi",
         env={
@@ -73,7 +68,7 @@ def main() -> None:
             "DEMO_WIF_PROVIDER": provider,
             "DEMO_GCP_PROJECT": args.gcp_project,
             "DEMO_GCP_PROJECT_NUMBER": args.gcp_project_number,
-            "DEMO_BQ_DATASET": args.dataset,
+            "DEMO_BQ_DATASET": 'sandbox_identity_demo',
             "CHALK_API_SERVER": api_server,
             "CHALK_ENVIRONMENT_ID": env_id,
         },
